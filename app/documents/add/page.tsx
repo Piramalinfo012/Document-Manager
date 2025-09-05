@@ -55,7 +55,7 @@ export default function AddDocument() {
 
   const fetchMasterData = async () => {
     try {
-      const scriptUrl = "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec";
+      const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
       const response = await fetch(`${scriptUrl}?sheet=Master&action=fetch`);
       
       if (!response.ok) {
@@ -222,7 +222,7 @@ export default function AddDocument() {
   };
 
   const uploadFileToGoogleDrive = async (file: File): Promise<string> => {
-    const scriptUrl = "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec";
+    const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
 
     try {
       const base64String = await new Promise<string>((resolve, reject) => {
@@ -240,7 +240,7 @@ export default function AddDocument() {
       formData.append('action', 'uploadFile');
       formData.append('fileName', file.name);
       formData.append('mimeType', file.type);
-      formData.append('folderId', '1cabsvAycYyrLhJ2D93zIqGSTKQ-Jw5Cq');
+      formData.append('folderId', '1O02jpBQhJOFwfcYomUJflt2ykOy8f-wa');
       formData.append('base64Data', base64String);
 
       const response = await fetch(scriptUrl, {
@@ -270,7 +270,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   try {
     setIsSubmitting(true);
-    const scriptUrl = "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec";
+    const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
 
     const serialResponse = await fetch(`${scriptUrl}?action=getNextSerials`);
 

@@ -197,7 +197,7 @@ const handleShareWhatsApp = async (number: string) => {
     );
 
     const response = await fetch(
-      "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec",
+      "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec",
       {
         method: "POST",
         body: formData,
@@ -476,7 +476,7 @@ useEffect(() => {
   }
     try {
       const docsResponse = await fetch(
-        "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec?sheet=Documents"
+        "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec?sheet=Documents"
       );
       const docsData = await docsResponse.json();
 
@@ -553,11 +553,11 @@ useEffect(() => {
       formData.append("action", "uploadFile");
       formData.append("fileName", file.name);
       formData.append("mimeType", file.type);
-      formData.append("folderId", "1cabsvAycYyrLhJ2D93zIqGSTKQ-Jw5Cq");
+      formData.append("folderId", "1O02jpBQhJOFwfcYomUJflt2ykOy8f-wa");
       formData.append("base64Data", base64String);
 
       const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec",
+        "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec",
         {
           method: "POST",
           body: formData,
@@ -654,7 +654,7 @@ useEffect(() => {
       formData.append("imageUrl", newImageUrl || "");
 
       const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec",
+        "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec",
         {
           method: "POST",
           body: formData,

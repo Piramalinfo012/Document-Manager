@@ -266,13 +266,13 @@ useEffect(() => {
       const [documentsResponse, renewalsResponse, masterResponse] =
         await Promise.all([
           fetch(
-            "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec?sheet=Documents"
+            "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec?sheet=Documents"
           ),
           fetch(
-            "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec?sheet=Updated Renewal"
+            "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec?sheet=Updated Renewal"
           ),
           fetch(
-            "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec?sheet=Master"
+            "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec?sheet=Master"
           ),
         ]);
 
@@ -502,7 +502,7 @@ useEffect(() => {
         formData.append("deletionMarker", "DELETED"); // Explicitly send the deletion marker
 
         const response = await fetch(
-          "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec",
+          "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec",
           {
             method: "POST",
             body: formData,
@@ -613,7 +613,7 @@ useEffect(() => {
         formData.append("timestamp", new Date().toISOString()); // Current timestamp for new entries
 
         const response = await fetch(
-          "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec",
+          "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec",
           {
             method: "POST",
             body: formData,
@@ -806,7 +806,7 @@ const filteredDocuments = documents
         );
 
         const response = await fetch(
-          "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec",
+          "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec",
           {
             method: "POST",
             body: formData,
@@ -865,7 +865,7 @@ const handleShareWhatsApp = async (number: string) => {
     formData.append("documents", JSON.stringify(documentsData));
 
     const response = await fetch(
-      "https://script.google.com/macros/s/AKfycbyptu7_UptnjWJVkiBbNZiDvIPRDB2OG8YObtHuLQ2-QdoknQ3ODS7WS031r5DK-8XnSg/exec",
+      "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec",
       {
         method: "POST",
         body: formData,
