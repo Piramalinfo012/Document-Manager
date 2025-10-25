@@ -3,7 +3,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { FileText, Home, LogOut, Menu, Plus, Share2, Upload, X, RefreshCw, CheckCircle, Key,Video } from "lucide-react"
+import { FileText, Home, LogOut, Menu, Plus, Share2, Upload, X, RefreshCw, CheckCircle, Key, Video } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 
 export function Sidebar() {
@@ -13,7 +13,8 @@ export function Sidebar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [userData, setUserData] = useState({ name: "", role: "" })
-
+const userName=localStorage.getItem('userName')
+const userRole=localStorage.getItem('userRole')
   // Use useEffect to check if component is mounted
   useEffect(() => {
     setMounted(true)
@@ -111,7 +112,7 @@ export function Sidebar() {
     { name: "Shared", path: "/shared", icon: Share2 },
     // { name: "Approval", path: "/documents/approval", icon: CheckCircle },
     { name: "License", path: "/documents/license", icon: Key },
-    { name : "Training Video", path : "/documents/video", icon: Video },
+    { name: "Training Video", path: "/documents/video", icon: Video },
   ];
 
   if (pathname === "/login") {
@@ -201,7 +202,21 @@ export function Sidebar() {
           </nav>
         </div>
 
+        {/* User info section - added above logout button */}
         <div className="p-4 border-t border-gray-200">
+          {/* User info display */}
+          <div className="mb-3 p-3 bg-gray-50 rounded-md border border-gray-200">
+            <div className="flex flex-col">
+              <span className="font-medium text-gray-900 truncate text-sm">
+                { userName||"Role not specified" } 
+              </span>
+              <span className="text-xs text-gray-600 truncate">
+               {userRole ||"User" }
+              </span>
+            </div>
+          </div>
+
+          {/* Logout button */}
           <div className="flex flex-col gap-3">
             <Button
               variant="outline"

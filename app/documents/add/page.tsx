@@ -221,49 +221,69 @@ export default function AddDocument() {
     }
   };
 
-  const uploadFileToGoogleDrive = async (file: File): Promise<string> => {
-    const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
+ const uploadFileToGoogleDrive = async (file: File): Promise<string> => {
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
 
-    try {
-      const base64String = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-          const result = reader.result as string;
-          const base64Data = result.split(',')[1];
-          resolve(base64Data);
-        };
-        reader.onerror = error => reject(error);
-      });
+  try {
+    const base64String = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64Data = result.split(',')[1];
+        resolve(base64Data);
+      };
+      reader.onerror = error => reject(error);
+    });
 
-      const formData = new FormData();
-      formData.append('action', 'uploadFile');
-      formData.append('fileName', file.name);
-      formData.append('mimeType', file.type);
-      formData.append('folderId', '1O02jpBQhJOFwfcYomUJflt2ykOy8f-wa');
-      formData.append('base64Data', base64String);
+    const formData = new FormData();
+    formData.append('action', 'uploadFile');
+    formData.append('fileName', file.name);
+    formData.append('mimeType', file.type);
+    formData.append('folderId', '1O02jpBQhJOFwfcYomUJflt2ykOy8f-wa');
+    formData.append('base64Data', base64String);
 
-      const response = await fetch(scriptUrl, {
-        method: 'POST',
-        body: formData,
-      });
+    const response = await fetch(scriptUrl, {
+      method: 'POST',
+      body: formData,
+    });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success && result.fileUrl) {
-        return result.fileUrl;
-      } else {
-        throw new Error(result.error || "File upload failed");
-      }
-    } catch (error) {
-      console.error("File upload error:", error);
-      throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+
+    const result = await response.json();
+
+    if (result.success && result.fileUrl) {
+      let fileUrl = result.fileUrl;
+      
+      // Convert Google Drive URL to proper viewing format based on file type
+      if (fileUrl.includes('drive.google.com')) {
+        const fileId = fileUrl.match(/[-\w]{25,}/)?.[0];
+        
+        if (fileId) {
+          if (file.type.includes('pdf')) {
+            // For PDFs: Use Google Drive preview URL for viewing
+            fileUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+          } else if (file.type.includes('image')) {
+            // For images: Use direct view URL
+            fileUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+          } else {
+            // For other files: Use preview URL
+            fileUrl = `https://drive.google.com/file/d/${fileId}/view`;
+          }
+        }
+      }
+      
+      return fileUrl;
+    } else {
+      throw new Error(result.error || "File upload failed");
+    }
+  } catch (error) {
+    console.error("File upload error:", error);
+    throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
 
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -298,6 +318,8 @@ const handleSubmit = async (e: React.FormEvent) => {
     const hours = String(now.getHours()).padStart(2, "0");
     const minutes = String(now.getMinutes()).padStart(2, "0");
     const timestamp = `${day}/${month}/${year} ${hours}:${minutes}`;
+
+    const userName=localStorage.getItem("userName")
 
     // Submit each document directly to the Documents sheet
     for (const file of multipleFiles) {
@@ -342,6 +364,10 @@ const handleSubmit = async (e: React.FormEvent) => {
         fileLink,
         "", // Empty email
         "", // Empty phone number
+         "", // Empty email
+        "", 
+         "", // Empty renewel filter
+        userName, // Empty phone number
       ];
 
       const formData = new FormData();

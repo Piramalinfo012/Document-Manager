@@ -74,7 +74,10 @@ interface Document {
   imageUrl: string;
   email: string;
   mobile: string;
+  submitted_by: string; 
 }
+
+type DocumentFilter = "Renewal" | "Overdue" | "Today" | "Upcoming";
 
 const formatDateToDDMMYYYY = (dateString: string): string => {
   if (!dateString) return "";
@@ -165,101 +168,25 @@ const formatDateTimeDisplay = (dateString: string): string => {
 
 const formatImageUrl = (url: string): string => {
   if (!url) return "";
-  if (url.includes("uc?export=view")) return url;
-  if (url.includes("drive.google.com/file/d/")) {
-    const fileId = url.split("/file/d/")[1].split("/")[0];
-    return `https://drive.google.com/uc?export=view&id=${fileId}`;
-  }
-  return url;
-};
-
-const handleShareWhatsApp = async (number: string) => {
-  try {
-    setIsLoading(true);
-
-    // Create FormData
-    const formData = new FormData();
-    formData.append("action", "shareViaWhatsApp");
-    formData.append("recipientNumber", number);
-    formData.append(
-      "documents",
-      JSON.stringify(
-        selectedDocuments.map((doc) => ({
-          id: doc.id.toString(),
-          name: doc.name,
-          serialNo: doc.serialNo,
-          documentType: doc.documentType,
-          category: doc.category,
-          imageUrl: doc.imageUrl,
-          sourceSheet: doc.sourceSheet,
-        }))
-      )
-    );
-
-    const response = await fetch(
-      "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec",
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-
-    const textResponse = await response.text();
-    console.log("Full response:", textResponse);
-
-    toast({
-      title: "Success",
-      description: "WhatsApp message sent successfully!",
-    });
-    setSelectedDocs([]);
-    return true;
-  } catch (error) {
-    console.error("Error sending WhatsApp message:", error);
-    toast({
-      title: "Error",
-      description: "Network error. Please check your connection.",
-      variant: "destructive",
-    });
-    return false;
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-const handleDownloadDocument = (imageUrl: string, documentName: string) => {
-  if (!imageUrl) {
-    toast({
-      title: "No image available",
-      description: "This document doesn't have an image to download",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  let downloadUrl = imageUrl;
-
-  if (imageUrl.includes("drive.google.com")) {
-    const fileId = imageUrl.match(/[-\w]{25,}/)?.[0];
+  
+  // ✅ FIX: Convert Google Drive download link to preview link
+  if (url.includes("drive.google.com")) {
+    // Extract file ID from any Google Drive URL format
+    let fileId = "";
+    
+    if (url.includes("/file/d/")) {
+      fileId = url.split("/file/d/")[1].split("/")[0];
+    } else if (url.includes("id=")) {
+      fileId = url.split("id=")[1].split("&")[0];
+    }
+    
     if (fileId) {
-      downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+      // Return PREVIEW link instead of download link
+      return `https://drive.google.com/file/d/${fileId}/preview`;
     }
   }
-
-  const link = document.createElement("a");
-  link.href = downloadUrl;
-  link.setAttribute(
-    "download",
-    `${documentName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.jpg` ||
-      "document.jpg"
-  );
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  toast({
-    title: "Download started",
-    description: `Downloading ${documentName}`,
-  });
+  
+  return url;
 };
 
 const LoadingSpinner = () => (
@@ -449,7 +376,9 @@ export default function DocumentsList() {
   const handleViewImage = (url: string) => {
     try {
       let imageUrl = formatImageUrl(url);
-      window.open(imageUrl, "_blank");
+      
+      // Open Google Drive preview in new tab
+      window.open(imageUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
       toast({
         title: "Error",
@@ -459,21 +388,57 @@ export default function DocumentsList() {
     }
   };
 
-useEffect(() => {
-  if (!isLoggedIn) {
-    router.push("/login");
-    return;
-  }
-  setMounted(true);
-  fetchDocuments(); // Always fetch on mount if logged in
-}, [isLoggedIn, router]);
+  const handleDownloadDocument = (imageUrl: string, documentName: string) => {
+    if (!imageUrl) {
+      toast({
+        title: "No image available",
+        description: "This document doesn't have an image to download",
+        variant: "destructive",
+      });
+      return;
+    }
 
+    let downloadUrl = imageUrl;
+
+    if (imageUrl.includes("drive.google.com")) {
+      const fileId = imageUrl.match(/[-\w]{25,}/)?.[0];
+      if (fileId) {
+        downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+      }
+    }
+
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.setAttribute(
+      "download",
+      `${documentName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.jpg` ||
+        "document.jpg"
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Download started",
+      description: `Downloading ${documentName}`,
+    });
+  };
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      router.push("/login");
+      return;
+    }
+    setMounted(true);
+    fetchDocuments(); // Always fetch on mount if logged in
+  }, [isLoggedIn, router]);
 
   const fetchDocuments = async () => {
-  // Only show loading if it's the initial load
-  if (documents.length === 0) {
-    setIsLoading(true);
-  }
+    // Only show loading if it's the initial load
+    if (documents.length === 0) {
+      setIsLoading(true);
+    }
+    
     try {
       const docsResponse = await fetch(
         "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec?sheet=Documents"
@@ -482,6 +447,7 @@ useEffect(() => {
 
       let docs = [];
       if (docsData.success && docsData.data) {
+        // First, process all documents
         docs = docsData.data
           .slice(1)
           .filter(
@@ -509,13 +475,19 @@ useEffect(() => {
             imageUrl: doc[11] || "",
             email: doc[12] || "",
             mobile: doc[13] ? String(doc[13]) : "",
-          }))
-          .filter(
-            (doc: Document) =>
-              userRole?.toLowerCase() === "admin" ||
-              doc.personName?.toLowerCase() === userName?.toLowerCase()
-          );
+            submitted_by: doc[17] || "", // Make sure this is included
+          }));
 
+        // Then apply filtering based on user role
+        if (userRole?.toLowerCase() !== "admin") {
+          docs = docs.filter(
+            (doc: Document) =>
+              doc.submitted_by && 
+              doc.submitted_by.toLowerCase() === userName?.toLowerCase()
+          );
+        }
+
+        // Sort the documents
         docs.sort(
           (a: Document, b: Document) =>
             new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -531,8 +503,8 @@ useEffect(() => {
         variant: "destructive",
       });
     } finally {
-    setIsLoading(false);
-  }
+      setIsLoading(false);
+    }
   };
 
   const handleImageUpload = async (file: File) => {
@@ -835,17 +807,17 @@ useEffect(() => {
     );
   };
 
-const handleFilterChange = (value: DocumentFilter) => {
-  setCurrentFilter(value);
-  const newSearchParams = new URLSearchParams(searchParams.toString());
-  if (value === "All") {
-    newSearchParams.delete("filter");
-  } else {
-    newSearchParams.set("filter", value);
-  }
-  router.replace(`?${newSearchParams.toString()}`, { scroll: false });
-  // No loading state change here
-};
+  const handleFilterChange = (value: DocumentFilter) => {
+    setCurrentFilter(value);
+    const newSearchParams = new URLSearchParams(searchParams.toString());
+    if (value === "All") {
+      newSearchParams.delete("filter");
+    } else {
+      newSearchParams.set("filter", value);
+    }
+    router.replace(`?${newSearchParams.toString()}`, { scroll: false });
+    // No loading state change here
+  };
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -1072,6 +1044,44 @@ const handleFilterChange = (value: DocumentFilter) => {
         </DialogContent>
       </Dialog>
 
+      {/* Image Preview Dialog */}
+      <Dialog open={imagePopup.open} onOpenChange={(open) => !open && setImagePopup({ open: false, url: "" })}>
+        <DialogContent className="sm:max-w-[900px] p-0">
+          <DialogHeader className="p-6 pb-0">
+            <DialogTitle className="text-[#7569F6]">Document Preview</DialogTitle>
+          </DialogHeader>
+          {imagePopup.url ? (
+            <div className="flex items-center justify-center p-6 overflow-auto" style={{ maxHeight: "75vh" }}>
+              <img
+                src={imagePopup.url}
+                alt="Document preview"
+                className="max-w-full h-auto rounded-lg shadow-lg"
+                onError={(e) => {
+                  e.currentTarget.src = "/placeholder-image.png";
+                  toast({
+                    title: "Error",
+                    description: "Could not load image",
+                    variant: "destructive",
+                  });
+                }}
+              />
+            </div>
+          ) : (
+            <div className="flex items-center justify-center p-12">
+              <Loader2 className="h-8 w-8 animate-spin text-[#7569F6]" />
+            </div>
+          )}
+          <div className="flex justify-end p-6 pt-0 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setImagePopup({ open: false, url: "" })}
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
         <div className="flex items-center">
           <Button
@@ -1109,7 +1119,6 @@ const handleFilterChange = (value: DocumentFilter) => {
             <Select
               onValueChange={handleFilterChange}
               value={currentFilter}
-              // No disabled state (filters work instantly)
             >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by" />
@@ -1202,8 +1211,12 @@ const handleFilterChange = (value: DocumentFilter) => {
                         <TableHead className="hidden md:table-cell p-2 md:p-4">
                           Renewal
                         </TableHead>
+                        {/* NEW DOWNLOAD COLUMN */}
+                       
                         <TableHead className="hidden md:table-cell p-2 md:p-4">
                           Image
+                        </TableHead> <TableHead className="hidden md:table-cell p-2 md:p-4 text-center">
+                          Download
                         </TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1227,31 +1240,28 @@ const handleFilterChange = (value: DocumentFilter) => {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent
-  align="end"
-  className="border-[#7569F6]/20"
->
-  <DropdownMenuItem
-    className="cursor-pointer text-[#7569F6] hover:bg-[#7569F6]/10"
-    onClick={() =>
-      handleDownloadDocument(
-        doc.imageUrl,
-        doc.name
-      )
-    }
-  >
-    <Download className="h-4 w-4 mr-2" />
-    Download
-  </DropdownMenuItem>
-  {userRole?.toLowerCase() === "admin" && (
-    <DropdownMenuItem
-      className="cursor-pointer text-[#7569F6] hover:bg-[#7569F6]/10"
-      onClick={() => handleEditRenewalClick(doc)}
-    >
-      <RefreshCw className="h-4 w-4 mr-2" />
-      Update Renewal
-    </DropdownMenuItem>
-  )}
-</DropdownMenuContent>
+                                  align="end"
+                                  className="border-[#7569F6]/20"
+                                >
+                                  <DropdownMenuItem
+                                    className="cursor-pointer text-[#7569F6] hover:bg-[#7569F6]/10"
+                                    onClick={() =>
+                                      handleDownloadDocument(doc.imageUrl, doc.name)
+                                    }
+                                  >
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Download
+                                  </DropdownMenuItem>
+                                  {userRole?.toLowerCase() === "admin" && (
+                                    <DropdownMenuItem
+                                      className="cursor-pointer text-[#7569F6] hover:bg-[#7569F6]/10"
+                                      onClick={() => handleEditRenewalClick(doc)}
+                                    >
+                                      <RefreshCw className="h-4 w-4 mr-2" />
+                                      Update Renewal
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
                               </DropdownMenu>
                             </TableCell>
                             <TableCell className="p-2 md:p-4 font-mono text-sm">
@@ -1293,9 +1303,6 @@ const handleFilterChange = (value: DocumentFilter) => {
                                 {doc.category || "N/A"}
                               </Badge>
                             </TableCell>
-                            {/* <TableCell className="hidden md:table-cell p-2 md:p-4">
-                              {doc.company || "-"}
-                            </TableCell> */}
                             <TableCell className="hidden md:table-cell p-2 md:p-4">
                               {doc.personName || "-"}
                             </TableCell>
@@ -1311,11 +1318,11 @@ const handleFilterChange = (value: DocumentFilter) => {
                                     className={`${
                                       getRenewalStatus(doc.renewalDate) ===
                                       "overdue"
-                                        ? "bg-red-100 text-red-800" // Expired
+                                        ? "bg-red-100 text-red-800"
                                         : getRenewalStatus(doc.renewalDate) ===
                                           "today"
-                                        ? "bg-yellow-100 text-yellow-800" // Today
-                                        : "bg-[#935DF6]/10 text-[#935DF6]" // Upcoming
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : "bg-[#935DF6]/10 text-[#935DF6]"
                                     } flex items-center gap-1`}
                                   >
                                     <RefreshCw className="h-3 w-3" />
@@ -1332,17 +1339,35 @@ const handleFilterChange = (value: DocumentFilter) => {
                                 <span className="text-gray-500 text-sm">-</span>
                               )}
                             </TableCell>
+                            {/* NEW DOWNLOAD CELL */}
+                          
                             <TableCell className="hidden lg:table-cell p-2 md:p-4">
                               {doc.imageUrl ? (
                                 <button
                                   type="button"
                                   onClick={() => handleViewImage(doc.imageUrl)}
                                   className="text-[#5477F6] hover:underline"
+                                  title="View Image"
                                 >
                                   <ImageIcon className="h-5 w-5 mr-1" />
                                 </button>
                               ) : (
                                 "-"
+                              )}
+                            </TableCell>  <TableCell className="hidden md:table-cell p-2 md:p-4 text-center">
+                              {doc.imageUrl ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-[#5477F6] hover:bg-[#5477F6]/10 hover:text-[#5477F6]"
+                                  onClick={() => handleDownloadDocument(doc.imageUrl, doc.name)}
+                                  title={`Download ${doc.name}`}
+                                >
+                                  <Download className="h-4 w-4" />
+                                  <span className="sr-only">Download {doc.name}</span>
+                                </Button>
+                              ) : (
+                                <span className="text-gray-400 text-sm">-</span>
                               )}
                             </TableCell>
                           </TableRow>
@@ -1350,7 +1375,7 @@ const handleFilterChange = (value: DocumentFilter) => {
                       ) : (
                         <TableRow>
                           <TableCell
-                            colSpan={13}
+                            colSpan={14} // Increased colSpan from 13 to 14
                             className="text-center py-8 text-gray-500"
                           >
                             {searchTerm || currentFilter !== "All" ? (
@@ -1420,41 +1445,55 @@ const handleFilterChange = (value: DocumentFilter) => {
                             </div>
                           </div>
                         </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                        <div className="flex items-center gap-1">
+                          {/* Download Button for Mobile */}
+                          {doc.imageUrl && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 w-8 p-0 text-[#7569F6] hover:bg-[#7569F6]/10"
+                              className="h-8 w-8 p-0 text-[#5477F6] hover:bg-[#5477F6]/10"
+                              onClick={() => handleDownloadDocument(doc.imageUrl, doc.name)}
+                              title={`Download ${doc.name}`}
                             >
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
+                              <Download className="h-4 w-4" />
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-  align="end"
-  className="border-[#7569F6]/20"
->
-  <DropdownMenuItem
-    className="cursor-pointer text-[#7569F6] hover:bg-[#7569F6]/10"
-    onClick={() =>
-      handleDownloadDocument(doc.imageUrl, doc.name)
-    }
-  >
-    <Download className="h-4 w-4 mr-2" />
-    Download
-  </DropdownMenuItem>
-  {userRole?.toLowerCase() === "admin" && (
-    <DropdownMenuItem
-      className="cursor-pointer text-[#7569F6] hover:bg-[#7569F6]/10"
-      onClick={() => handleEditRenewalClick(doc)}
-    >
-      <RefreshCw className="h-4 w-4 mr-2" />
-      Update Renewal
-    </DropdownMenuItem>
-  )}
-</DropdownMenuContent>
-                        </DropdownMenu>
+                          )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-[#7569F6] hover:bg-[#7569F6]/10"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Open menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              className="border-[#7569F6]/20"
+                            >
+                              <DropdownMenuItem
+                                className="cursor-pointer text-[#7569F6] hover:bg-[#7569F6]/10"
+                                onClick={() =>
+                                  handleDownloadDocument(doc.imageUrl, doc.name)
+                                }
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </DropdownMenuItem>
+                              {userRole?.toLowerCase() === "admin" && (
+                                <DropdownMenuItem
+                                  className="cursor-pointer text-[#7569F6] hover:bg-[#7569F6]/10"
+                                  onClick={() => handleEditRenewalClick(doc)}
+                                >
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                  Update Renewal
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
 
                       <div className="mt-2 pl-10">
@@ -1477,10 +1516,10 @@ const handleFilterChange = (value: DocumentFilter) => {
                           <Badge
                             className={`${
                               getRenewalStatus(doc.renewalDate) === "overdue"
-                                ? "bg-red-100 text-red-800" // Expired
+                                ? "bg-red-100 text-red-800"
                                 : getRenewalStatus(doc.renewalDate) === "today"
-                                ? "bg-yellow-100 text-yellow-800" // Today
-                                : "bg-[#935DF6]/10 text-[#935DF6]" // Upcoming
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-[#935DF6]/10 text-[#935DF6]"
                             } flex items-center gap-1 mt-2`}
                           >
                             <RefreshCw className="h-3 w-3" />
@@ -1494,14 +1533,25 @@ const handleFilterChange = (value: DocumentFilter) => {
                           </Badge>
                         )}
                         {doc.imageUrl && (
-                          <button
-                            type="button"
-                            onClick={() => handleViewImage(doc.imageUrl)}
-                            className="mt-1 flex items-center text-xs text-[#5477F6]"
-                          >
-                            <ImageIcon className="h-3 w-3 mr-1" />
-                            View Image
-                          </button>
+                          <div className="flex items-center gap-2 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleViewImage(doc.imageUrl)}
+                              className="flex items-center text-xs text-[#5477F6]"
+                            >
+                              <ImageIcon className="h-3 w-3 mr-1" />
+                              View Image
+                            </button>
+                            <span className="text-gray-300">•</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadDocument(doc.imageUrl, doc.name)}
+                              className="flex items-center text-xs text-[#5477F6]"
+                            >
+                              <Download className="h-3 w-3 mr-1" />
+                              Download
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>

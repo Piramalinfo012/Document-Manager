@@ -33,6 +33,7 @@ import {
   Loader2,
   Check,
   X as XIcon,
+  Eye,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "@/components/ui/use-toast";
@@ -81,6 +82,7 @@ interface Document {
   mobile: string;
   sourceSheet: string;
   isDeleted: boolean;
+  submitted_by: string;
 }
 
 type DocumentFilter = "All" | "Personal" | "Company" | "Director" | "Renewal";
@@ -260,225 +262,230 @@ useEffect(() => {
   }
 }, [isLoggedIn, router, searchParams, userRole, userName]);
 
-  const fetchDocuments = async () => {
-    setIsLoading(true);
-    try {
-      const [documentsResponse, renewalsResponse, masterResponse] =
-        await Promise.all([
-          fetch(
-            "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec?sheet=Documents"
-          ),
-          fetch(
-            "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec?sheet=Updated Renewal"
-          ),
-          fetch(
-            "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec?sheet=Master"
-          ),
-        ]);
-
-      const [documentsData, renewalsData, masterData] = await Promise.all([
-        documentsResponse.json(),
-        renewalsResponse.json(),
-        masterResponse.json(),
+const fetchDocuments = async () => {
+  setIsLoading(true);
+  try {
+    const [documentsResponse, renewalsResponse, masterResponse] =
+      await Promise.all([
+        fetch(
+          "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec?sheet=Documents"
+        ),
+        fetch(
+          "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec?sheet=Updated Renewal"
+        ),
+        fetch(
+          "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec?sheet=Master"
+        ),
       ]);
 
-      // Process document types from Master sheet
-      if (masterData.success && masterData.data) {
-        const types = masterData.data
-          .slice(1) // Skip header row
-          .map((row: any[]) => row[0]) // Column A contains document types
-          .filter((type: string) => type) // Remove empty values
-          .filter((value: string, index: number, self: string[]) => 
-            self.indexOf(value) === index // Remove duplicates
-          );
-        setDocumentTypes(types);
-      } 
-        let allDocs: Document[] = [];
-        const serialNoMap = new Map<string, Document>(); // To track duplicates by serialNo
+    const [documentsData, renewalsData, masterData] = await Promise.all([
+      documentsResponse.json(),
+      renewalsResponse.json(),
+      masterResponse.json(),
+    ]);
 
-        // Helper function to process and merge documents
-        const processDocument = (doc: Document) => {
-          if (!doc.serialNo) {
-            // If no serialNo, just add it
-            allDocs.push(doc);
-            return;
-          }
-
-          const existingDoc = serialNoMap.get(doc.serialNo);
-          if (existingDoc) {
-            // Merge with existing document, preferring newer data
-            const existingDate = new Date(existingDoc.timestamp);
-            const newDate = new Date(doc.timestamp);
-
-            if (newDate > existingDate) {
-              // If the new document is more recent, merge it with the existing one
-              const mergedDoc: Document = {
-                ...existingDoc,
-                ...doc,
-                // Keep the most recent timestamp
-                timestamp: doc.timestamp,
-                // Combine tags
-                tags: [...new Set([...existingDoc.tags, ...doc.tags])],
-                // Prefer non-empty values from the newer document
-                name: doc.name || existingDoc.name,
-                documentType: doc.documentType || existingDoc.documentType,
-                category: doc.category || existingDoc.category,
-                company: doc.company || existingDoc.company,
-                personName: doc.personName || existingDoc.personName,
-                needsRenewal: doc.needsRenewal || existingDoc.needsRenewal,
-                renewalDate: doc.renewalDate || existingDoc.renewalDate,
-                imageUrl: doc.imageUrl || existingDoc.imageUrl,
-                email: doc.email || existingDoc.email,
-                mobile: doc.mobile || existingDoc.mobile,
-              };
-
-              // Update the map and array
-              serialNoMap.set(doc.serialNo, mergedDoc);
-              const index = allDocs.findIndex((d) => d.id === existingDoc.id);
-              if (index !== -1) {
-                allDocs[index] = mergedDoc;
-              }
-            }
-          } else {
-            // Add new document to map and array
-            serialNoMap.set(doc.serialNo, doc);
-            allDocs.push(doc);
-          }
-        };
-
-        // Process Documents sheet
-        if (documentsData.success && documentsData.data) {
-          const documentsSheetData = documentsData.data
-            .slice(1)
-            .map((doc: any[], index: number) => {
-              const isDeleted =
-                doc[14] &&
-                (doc[14] === "DELETED" ||
-                  doc[14] === "Deleted" ||
-                  doc[14] === "deleted");
-
-              return {
-                id: index + 1,
-                timestamp: doc[0]
-                  ? new Date(doc[0]).toISOString()
-                  : new Date().toISOString(),
-                serialNo: doc[1] || "",
-                name: doc[2] || "",
-                documentType: doc[3] || "Personal",
-                category: doc[4] || "",
-                company: doc[5] || "",
-                tags: doc[6]
-                  ? String(doc[6])
-                      .split(",")
-                      .map((tag: string) => tag.trim())
-                  : [],
-                personName: doc[7] || "",
-                needsRenewal: doc[8] === "TRUE" || doc[8] === "Yes" || false,
-                renewalDate: formatDateToDDMMYYYY(doc[9] || ""),
-                imageUrl: doc[11] || "",
-                email: doc[12] || "",
-                mobile: doc[13] ? String(doc[13]) : "",
-                sourceSheet: "Documents",
-                isDeleted: isDeleted,
-              };
-            })
-            .filter((doc) => !doc.isDeleted);
-
-          documentsSheetData.forEach(processDocument);
-        }
-
-        // Process Updated Renewal sheet
-        if (renewalsData.success && renewalsData.data) {
-          const renewalDocs = renewalsData.data
-            .slice(1)
-            .map((doc: any[], index: number) => {
-              const renewalInfo = doc[9] || "";
-              let needsRenewal = false;
-              let renewalDate = "";
-
-              if (renewalInfo) {
-                const parsedDate = new Date(renewalInfo);
-                if (!isNaN(parsedDate.getTime())) {
-                  needsRenewal = true;
-                  renewalDate = formatDateToDDMMYYYY(renewalInfo);
-                } else {
-                  needsRenewal =
-                    renewalInfo === "TRUE" ||
-                    renewalInfo === "Yes" ||
-                    renewalInfo === "Requires Renewal" ||
-                    renewalInfo.toLowerCase().includes("renew");
-                }
-              }
-
-              const isDeleted =
-                doc[14] &&
-                (doc[14] === "DELETED" ||
-                  doc[14] === "Deleted" ||
-                  doc[14] === "deleted");
-
-              return {
-                id: index + 1000000,
-                timestamp: doc[0]
-                  ? new Date(doc[0]).toISOString()
-                  : new Date().toISOString(),
-                serialNo: doc[1] || "",
-                name: doc[3] || "",
-                documentType: "Renewal",
-                category: doc[5] || "",
-                company: doc[6] || "",
-                tags: doc[7]
-                  ? String(doc[7])
-                      .split(",")
-                      .map((tag: string) => tag.trim())
-                  : [],
-                personName: doc[10] || "",
-                needsRenewal: needsRenewal,
-                renewalDate: renewalDate,
-                imageUrl: doc[13] || "",
-                email: doc[11] || "",
-                mobile: doc[12] ? String(doc[12]) : "",
-                sourceSheet: "Updated Renewal",
-                isDeleted: isDeleted,
-              };
-            })
-            .filter((doc) => !doc.isDeleted);
-
-          renewalDocs.forEach(processDocument);
-        }
-
-        allDocs.sort(
-          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    // Process document types from Master sheet
+    if (masterData.success && masterData.data) {
+      const types = masterData.data
+        .slice(1) // Skip header row
+        .map((row: any[]) => row[0]) // Column A contains document types
+        .filter((type: string) => type) // Remove empty values
+        .filter((value: string, index: number, self: string[]) => 
+          self.indexOf(value) === index // Remove duplicates
         );
+      setDocumentTypes(types);
+    } 
 
-        // Assign sequential IDs based on the sorted order to maintain consistency
-        allDocs = allDocs.map((doc, index) => ({ ...doc, id: index + 1 }));
-        // If user is admin, show all documents
-        if (userRole && userRole.toString().toLowerCase() === "admin") {
-          setDocuments(allDocs);
-          return;
+    let allDocs: Document[] = [];
+    const serialNoMap = new Map<string, Document>(); // To track duplicates by serialNo
+
+    // Helper function to process and merge documents
+    const processDocument = (doc: Document) => {
+      if (!doc.serialNo) {
+        // If no serialNo, just add it
+        allDocs.push(doc);
+        return;
+      }
+
+      const existingDoc = serialNoMap.get(doc.serialNo);
+      if (existingDoc) {
+        // Merge with existing document, preferring newer data
+        const existingDate = new Date(existingDoc.timestamp);
+        const newDate = new Date(doc.timestamp);
+
+        if (newDate > existingDate) {
+          // If the new document is more recent, merge it with the existing one
+          const mergedDoc: Document = {
+            ...existingDoc,
+            ...doc,
+            // Keep the most recent timestamp
+            timestamp: doc.timestamp,
+            // Combine tags
+            tags: [...new Set([...existingDoc.tags, ...doc.tags])],
+            // Prefer non-empty values from the newer document
+            name: doc.name || existingDoc.name,
+            documentType: doc.documentType || existingDoc.documentType,
+            category: doc.category || existingDoc.category,
+            company: doc.company || existingDoc.company,
+            personName: doc.personName || existingDoc.personName,
+            needsRenewal: doc.needsRenewal || existingDoc.needsRenewal,
+            renewalDate: doc.renewalDate || existingDoc.renewalDate,
+            imageUrl: doc.imageUrl || existingDoc.imageUrl,
+            email: doc.email || existingDoc.email,
+            mobile: doc.mobile || existingDoc.mobile,
+            submitted_by: doc.submitted_by || existingDoc.submitted_by // Include submitted_by in merge
+          };
+
+          // Update the map and array
+          serialNoMap.set(doc.serialNo, mergedDoc);
+          const index = allDocs.findIndex((d) => d.id === existingDoc.id);
+          if (index !== -1) {
+            allDocs[index] = mergedDoc;
+          }
         }
-
-        // For non-admin users, filter documents by their name
-        if (userName) {
-          allDocs = allDocs.filter(
-            (doc) =>
-              doc.personName &&
-              doc.personName.toLowerCase() === userName.toLowerCase()
-          );
-        }
-
-        setDocuments(allDocs);
-      } catch (error) {
-        console.error("Error fetching documents:", error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch documents",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
+      } else {
+        // Add new document to map and array
+        serialNoMap.set(doc.serialNo, doc);
+        allDocs.push(doc);
       }
     };
+
+    // Process Documents sheet - ADD submitted_by FIELD HERE
+    if (documentsData.success && documentsData.data) {
+      const documentsSheetData = documentsData.data
+        .slice(1)
+        .map((doc: any[], index: number) => {
+          const isDeleted =
+            doc[14] &&
+            (doc[14] === "DELETED" ||
+              doc[14] === "Deleted" ||
+              doc[14] === "deleted");
+
+          return {
+            id: index + 1,
+            timestamp: doc[0]
+              ? new Date(doc[0]).toISOString()
+              : new Date().toISOString(),
+            serialNo: doc[1] || "",
+            name: doc[2] || "",
+            documentType: doc[3] || "Personal",
+            category: doc[4] || "",
+            company: doc[5] || "",
+            tags: doc[6]
+              ? String(doc[6])
+                  .split(",")
+                  .map((tag: string) => tag.trim())
+              : [],
+            personName: doc[7] || "",
+            needsRenewal: doc[8] === "TRUE" || doc[8] === "Yes" || false,
+            renewalDate: formatDateToDDMMYYYY(doc[9] || ""),
+            imageUrl: doc[11] || "",
+            email: doc[12] || "",
+            mobile: doc[13] ? String(doc[13]) : "",
+            sourceSheet: "Documents",
+            isDeleted: isDeleted,
+            submitted_by: doc[17] || "", // ADD THIS LINE - column 15 for submitted_by
+          };
+        })
+        .filter((doc) => !doc.isDeleted);
+
+      documentsSheetData.forEach(processDocument);
+    }
+
+    // Process Updated Renewal sheet
+    if (renewalsData.success && renewalsData.data) {
+      const renewalDocs = renewalsData.data
+        .slice(1)
+        .map((doc: any[], index: number) => {
+          const renewalInfo = doc[9] || "";
+          let needsRenewal = false;
+          let renewalDate = "";
+
+          if (renewalInfo) {
+            const parsedDate = new Date(renewalInfo);
+            if (!isNaN(parsedDate.getTime())) {
+              needsRenewal = true;
+              renewalDate = formatDateToDDMMYYYY(renewalInfo);
+            } else {
+              needsRenewal =
+                renewalInfo === "TRUE" ||
+                renewalInfo === "Yes" ||
+                renewalInfo === "Requires Renewal" ||
+                renewalInfo.toLowerCase().includes("renew");
+            }
+          }
+
+          const isDeleted =
+            doc[14] &&
+            (doc[14] === "DELETED" ||
+              doc[14] === "Deleted" ||
+              doc[14] === "deleted");
+
+          return {
+            id: index + 1000000,
+            timestamp: doc[0]
+              ? new Date(doc[0]).toISOString()
+              : new Date().toISOString(),
+            serialNo: doc[1] || "",
+            name: doc[3] || "",
+            documentType: "Renewal",
+            category: doc[5] || "",
+            company: doc[6] || "",
+            tags: doc[7]
+              ? String(doc[7])
+                  .split(",")
+                  .map((tag: string) => tag.trim())
+              : [],
+            personName: doc[10] || "",
+            needsRenewal: needsRenewal,
+            renewalDate: renewalDate,
+            imageUrl: doc[13] || "",
+            email: doc[11] || "",
+            mobile: doc[12] ? String(doc[12]) : "",
+            sourceSheet: "Updated Renewal",
+            isDeleted: isDeleted,
+            submitted_by: doc[17] || "" // This already exists
+          };
+        })
+        .filter((doc) => !doc.isDeleted);
+
+      renewalDocs.forEach(processDocument);
+    }
+
+    allDocs.sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+
+    // Assign sequential IDs based on the sorted order to maintain consistency
+    allDocs = allDocs.map((doc, index) => ({ ...doc, id: index + 1 }));
+    
+    // If user is admin, show all documents
+    if (userRole && userRole.toString().toLowerCase() === "admin") {
+      setDocuments(allDocs);
+      return;
+    }
+
+    // For non-admin users, filter documents by submitted_by field
+    if (userName) {
+      allDocs = allDocs.filter(
+        (doc) =>
+          doc.submitted_by && // Check if submitted_by exists
+          doc.submitted_by.toLowerCase() === userName.toLowerCase() // Compare with current user's name
+      );
+    }
+
+    setDocuments(allDocs);
+  } catch (error) {
+    console.error("Error fetching documents:", error);
+    toast({
+      title: "Error",
+      description: "Failed to fetch documents",
+      variant: "destructive",
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
     const handleDeleteDocument = async (docId: number) => {
       try {
@@ -538,11 +545,51 @@ useEffect(() => {
       }
     };
 
+    // Function to handle viewing document (opens in new tab)
+    const handleViewDocument = (imageUrl: string, documentName: string) => {
+      if (!imageUrl) {
+        toast({
+          title: "No document available",
+          description: "This document doesn't have a file to view",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Convert Google Drive URL to preview format
+      let previewUrl = imageUrl;
+      
+      if (imageUrl.includes("drive.google.com")) {
+        // Extract file ID from any Google Drive URL format
+        let fileId = "";
+        
+        if (imageUrl.includes("/file/d/")) {
+          fileId = imageUrl.split("/file/d/")[1].split("/")[0];
+        } else if (imageUrl.includes("id=")) {
+          fileId = imageUrl.split("id=")[1].split("&")[0];
+        }
+        
+        if (fileId) {
+          // Use preview URL instead of download URL
+          previewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+        }
+      }
+      
+      // Open in new tab for preview
+      window.open(previewUrl, "_blank", "noopener,noreferrer");
+      
+      toast({
+        title: "Opening document",
+        description: `Viewing ${documentName}`,
+      });
+    };
+
+    // Function to handle downloading document
     const handleDownloadDocument = (imageUrl: string, documentName: string) => {
       if (!imageUrl) {
         toast({
-          title: "No image available",
-          description: "This document doesn't have an image to download",
+          title: "No document available",
+          description: "This document doesn't have a file to download",
           variant: "destructive",
         });
         return;
@@ -946,7 +993,7 @@ const handleFilterChange = (value: string) => {
         <Toaster />
 
         {/* Fixed header section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4 sticky top-0  z-10 py-2 border-b border-indigo-100">
+         <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4 sticky top-0  z-10 py-2 border-b border-indigo-100">
           <div className="flex items-center">
             <Button
               variant="ghost"
@@ -1015,7 +1062,7 @@ const handleFilterChange = (value: string) => {
 </Select>
 
               <div className="flex gap-2 flex-1 sm:flex-none">
-                {currentUserRole?.toLowerCase() === "admin" && (
+               
                   <>
                     <Button
                       size="sm"
@@ -1038,11 +1085,12 @@ const handleFilterChange = (value: string) => {
                       <span className="sm:hidden">WA</span>
                     </Button>
                   </>
-                )}
+             
               </div>
             </div>
           </div>
         </div>
+
 
         {/* Scrollable content area */}
        <div className="hidden md:flex flex-1 overflow-hidden">
@@ -1110,7 +1158,10 @@ const handleFilterChange = (value: string) => {
                 Renewal
               </TableHead>
               <TableHead className="w-12 hidden lg:table-cell p-2 md:p-4">
-                Image
+                View
+              </TableHead>
+              <TableHead className="w-12 hidden lg:table-cell p-2 md:p-4">
+                Download
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -1204,10 +1255,16 @@ const handleFilterChange = (value: string) => {
                                   <DropdownMenuItem
                                     className="cursor-pointer text-indigo-700 hover:bg-indigo-50"
                                     onClick={() =>
-                                      handleDownloadDocument(
-                                        doc.imageUrl,
-                                        doc.name
-                                      )
+                                      handleViewDocument(doc.imageUrl, doc.name)
+                                    }
+                                  >
+                                    <Eye className="h-4 w-4 mr-2 text-indigo-500" />
+                                    View
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="cursor-pointer text-indigo-700 hover:bg-indigo-50"
+                                    onClick={() =>
+                                      handleDownloadDocument(doc.imageUrl, doc.name)
                                     }
                                   >
                                     <Download className="h-4 w-4 mr-2 text-indigo-500" />
@@ -1268,9 +1325,6 @@ const handleFilterChange = (value: string) => {
                                 {doc.category || "N/A"}
                               </Badge>
                             </TableCell>
-                            {/* <TableCell className="hidden md:table-cell p-2 md:p-4">
-                              {doc.company || "-"}
-                            </TableCell> */}
                             <TableCell className="hidden md:table-cell p-2 md:p-4">
                               {doc.personName || "-"}
                             </TableCell>
@@ -1351,14 +1405,25 @@ const handleFilterChange = (value: string) => {
                                 <span className="text-gray-500 text-sm">-</span>
                               )}
                             </TableCell>
+                            {/* View Column */}
                             <TableCell className="hidden lg:table-cell p-2 md:p-4">
-                              <a
-                                href={doc.imageUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                onClick={() => handleViewDocument(doc.imageUrl, doc.name)}
+                                className="text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                                title="View Document"
                               >
-                                <ImageIcon className="h-5 w-5 mr-1 text-indigo-600" />
-                              </a>
+                                <Eye className="h-5 w-5" />
+                              </button>
+                            </TableCell>
+                            {/* Download Column */}
+                            <TableCell className="hidden lg:table-cell p-2 md:p-4">
+                              <button
+                                onClick={() => handleDownloadDocument(doc.imageUrl, doc.name)}
+                                className="text-green-600 hover:text-green-800 cursor-pointer"
+                                title="Download Document"
+                              >
+                                <Download className="h-5 w-5" />
+                              </button>
                             </TableCell>
                           </TableRow>
                         ))
@@ -1520,15 +1585,23 @@ const handleFilterChange = (value: string) => {
                             </Badge>
                           )
                         )}
-                        {doc.imageUrl && (
+                        {/* Mobile view buttons */}
+                        <div className="flex gap-3 mt-2">
                           <button
-                            onClick={() => window.open(doc.imageUrl, "_blank")}
-                            className="mt-1 flex items-center text-xs text-indigo-500"
+                            onClick={() => handleViewDocument(doc.imageUrl, doc.name)}
+                            className="flex items-center text-xs text-indigo-500 hover:text-indigo-700"
                           >
-                            <ImageIcon className="h-3 w-3 mr-1" />
-                            View Image
+                            <Eye className="h-3 w-3 mr-1" />
+                            View
                           </button>
-                        )}
+                          <button
+                            onClick={() => handleDownloadDocument(doc.imageUrl, doc.name)}
+                            className="flex items-center text-xs text-green-500 hover:text-green-700"
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Download
+                          </button>
+                        </div>
                       </div>
                     </div>
                     <DropdownMenu>
@@ -1600,6 +1673,15 @@ const handleFilterChange = (value: string) => {
                             </DropdownMenuItem>
                           </>
                         )}
+                        <DropdownMenuItem
+                          className="cursor-pointer text-indigo-700 hover:bg-indigo-50"
+                          onClick={() =>
+                            handleViewDocument(doc.imageUrl, doc.name)
+                          }
+                        >
+                          <Eye className="h-4 w-4 mr-2 text-indigo-500" />
+                          View
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           className="cursor-pointer text-indigo-700 hover:bg-indigo-50"
                           onClick={() =>
