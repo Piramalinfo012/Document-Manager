@@ -57,13 +57,13 @@ export default function AddDocument() {
     try {
       const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
       const response = await fetch(`${scriptUrl}?sheet=Master&action=fetch`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch master data: ${response.status}`);
       }
 
       const result = await response.json();
-      
+
       if (!result.success || !result.data) {
         throw new Error(result.error || "Failed to fetch master data");
       }
@@ -72,7 +72,7 @@ export default function AddDocument() {
       const types = result.data.slice(1) // Skip header row
         .map((row: string[]) => row[0])
         .filter((type: string) => type); // Remove empty values
-      
+
       // Extract categories from column B (index 1)
       const cats = result.data.slice(1) // Skip header row
         .map((row: string[]) => row[1])
@@ -101,6 +101,7 @@ export default function AddDocument() {
       needsRenewal: boolean;
       renewalDate: string;
       renewalTime: string;
+      renewalType: string;
     }>
   >([
     {
@@ -113,6 +114,7 @@ export default function AddDocument() {
       needsRenewal: false,
       renewalDate: "",
       renewalTime: "",
+      renewalType: "",
     },
   ]);
 
@@ -165,7 +167,8 @@ export default function AddDocument() {
       | "documentType"
       | "entityName"
       | "renewalDate"
-      | "renewalTime",
+      | "renewalTime"
+      | "renewalType",
     value: string
   ) => {
     const updatedFiles = [...multipleFiles];
@@ -198,6 +201,7 @@ export default function AddDocument() {
         needsRenewal: false,
         renewalDate: "",
         renewalTime: "",
+        renewalType: "",
       },
     ]);
   };
@@ -221,162 +225,30 @@ export default function AddDocument() {
     }
   };
 
- const uploadFileToGoogleDrive = async (file: File): Promise<string> => {
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
-
-  try {
-    const base64String = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64Data = result.split(',')[1];
-        resolve(base64Data);
-      };
-      reader.onerror = error => reject(error);
-    });
-
-    const formData = new FormData();
-    formData.append('action', 'uploadFile');
-    formData.append('fileName', file.name);
-    formData.append('mimeType', file.type);
-    formData.append('folderId', '1O02jpBQhJOFwfcYomUJflt2ykOy8f-wa');
-    formData.append('base64Data', base64String);
-
-    const response = await fetch(scriptUrl, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    if (result.success && result.fileUrl) {
-      let fileUrl = result.fileUrl;
-      
-      // Convert Google Drive URL to proper viewing format based on file type
-      if (fileUrl.includes('drive.google.com')) {
-        const fileId = fileUrl.match(/[-\w]{25,}/)?.[0];
-        
-        if (fileId) {
-          if (file.type.includes('pdf')) {
-            // For PDFs: Use Google Drive preview URL for viewing
-            fileUrl = `https://drive.google.com/file/d/${fileId}/preview`;
-          } else if (file.type.includes('image')) {
-            // For images: Use direct view URL
-            fileUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
-          } else {
-            // For other files: Use preview URL
-            fileUrl = `https://drive.google.com/file/d/${fileId}/view`;
-          }
-        }
-      }
-      
-      return fileUrl;
-    } else {
-      throw new Error(result.error || "File upload failed");
-    }
-  } catch (error) {
-    console.error("File upload error:", error);
-    throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-};
-
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  try {
-    setIsSubmitting(true);
+  const uploadFileToGoogleDrive = async (file: File): Promise<string> => {
     const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
 
-    const serialResponse = await fetch(`${scriptUrl}?action=getNextSerials`);
-
-    if (!serialResponse.ok) {
-      throw new Error(`Failed to fetch serial numbers: ${serialResponse.status}`);
-    }
-
-    const serialData = await serialResponse.json();
-
-    if (!serialData.success) {
-      throw new Error(serialData.error || "Failed to get next serial numbers");
-    }
-
-    console.log("Next available serial numbers:", serialData.nextSerials);
-
-    let nextPersonal = serialData.nextSerials.personal;
-    let nextCompany = serialData.nextSerials.company;
-    let nextDirector = serialData.nextSerials.director;
-
-    // Get current date and time in dd/mm/yyyy hh:mm format
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, "0");
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const year = now.getFullYear();
-    const hours = String(now.getHours()).padStart(2, "0");
-    const minutes = String(now.getMinutes()).padStart(2, "0");
-    const timestamp = `${day}/${month}/${year} ${hours}:${minutes}`;
-
-    const userName=localStorage.getItem("userName")
-
-    // Submit each document directly to the Documents sheet
-    for (const file of multipleFiles) {
-      let serialNumber = "";
-      const prefix = getSerialPrefix(file.documentType);
-
-      if (file.documentType === "Personal") {
-        serialNumber = `${prefix}-${String(nextPersonal).padStart(3, "0")}`;
-        nextPersonal++;
-      } else if (file.documentType === "Company") {
-        serialNumber = `${prefix}-${String(nextCompany).padStart(3, "0")}`;
-        nextCompany++;
-      } else if (file.documentType === "Director") {
-        serialNumber = `${prefix}-${String(nextDirector).padStart(3, "0")}`;
-        nextDirector++;
-      }
-
-      console.log(`Generated serial number: ${serialNumber} for document: ${file.name}`);
-
-      let fileLink = "";
-      if (file.file) {
-        fileLink = await uploadFileToGoogleDrive(file.file);
-      }
-
-      // Combine renewal date and time into a single string
-      const renewalDateTime = file.needsRenewal && file.renewalDate && file.renewalTime 
-        ? `${formatDateToDDMMYYYY(file.renewalDate)} ${file.renewalTime}`
-        : "";
-
-      const rowData = [
-        timestamp, // Use the formatted timestamp here
-        serialNumber,
-        file.name,
-        file.type,
-        file.documentType,
-        "", // Empty company field (removed)
-        "", // Empty tags
-        file.entityName,
-        file.needsRenewal ? "Yes" : "No",
-        renewalDateTime, // Combined date and time in one column
-        `${((file.file?.size || 0) / 1024 / 1024).toFixed(2)} MB`,
-        fileLink,
-        "", // Empty email
-        "", // Empty phone number
-         "", // Empty email
-        "", 
-         "", // Empty renewel filter
-        userName, // Empty phone number
-      ];
+    try {
+      const base64String = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64Data = result.split(',')[1];
+          resolve(base64Data);
+        };
+        reader.onerror = error => reject(error);
+      });
 
       const formData = new FormData();
-      formData.append("sheetName", "Documents");
-      formData.append("action", "insert");
-      formData.append("rowData", JSON.stringify(rowData));
+      formData.append('action', 'uploadFile');
+      formData.append('fileName', file.name);
+      formData.append('mimeType', file.type);
+      formData.append('folderId', '1O02jpBQhJOFwfcYomUJflt2ykOy8f-wa');
+      formData.append('base64Data', base64String);
 
       const response = await fetch(scriptUrl, {
-        method: "POST",
+        method: 'POST',
         body: formData,
       });
 
@@ -386,41 +258,175 @@ const handleSubmit = async (e: React.FormEvent) => {
 
       const result = await response.json();
 
-      if (!result || !result.success) {
-        throw new Error(result?.error || "Document submission failed");
+      if (result.success && result.fileUrl) {
+        let fileUrl = result.fileUrl;
+
+        // Convert Google Drive URL to proper viewing format based on file type
+        if (fileUrl.includes('drive.google.com')) {
+          const fileId = fileUrl.match(/[-\w]{25,}/)?.[0];
+
+          if (fileId) {
+            if (file.type.includes('pdf')) {
+              // For PDFs: Use Google Drive preview URL for viewing
+              fileUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+            } else if (file.type.includes('image')) {
+              // For images: Use direct view URL
+              fileUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+            } else {
+              // For other files: Use preview URL
+              fileUrl = `https://drive.google.com/file/d/${fileId}/view`;
+            }
+          }
+        }
+
+        return fileUrl;
+      } else {
+        throw new Error(result.error || "File upload failed");
       }
+    } catch (error) {
+      console.error("File upload error:", error);
+      throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  };
 
-    toast({
-      title: "Success",
-      description: "Documents have been added successfully.",
-    });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-    // Reset the form
-    setMultipleFiles([{
-      id: 1,
-      name: "",
-      type: "",
-      documentType: "Personal",
-      file: null,
-      entityName: "",
-      needsRenewal: false,
-      renewalDate: "",
-      renewalTime: "",
-    }]);
+    try {
+      setIsSubmitting(true);
+      const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
 
-    router.push("/documents");
-  } catch (error) {
-    console.error("Submission error:", error);
-    toast({
-      title: "Error",
-      description: error instanceof Error ? error.message : "An unexpected error occurred",
-      variant: "destructive",
-    });
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+      const serialResponse = await fetch(`${scriptUrl}?action=getNextSerials`);
+
+      if (!serialResponse.ok) {
+        throw new Error(`Failed to fetch serial numbers: ${serialResponse.status}`);
+      }
+
+      const serialData = await serialResponse.json();
+
+      if (!serialData.success) {
+        throw new Error(serialData.error || "Failed to get next serial numbers");
+      }
+
+      console.log("Next available serial numbers:", serialData.nextSerials);
+
+      let nextPersonal = serialData.nextSerials.personal;
+      let nextCompany = serialData.nextSerials.company;
+      let nextDirector = serialData.nextSerials.director;
+
+      // Get current date and time in dd/mm/yyyy hh:mm format
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, "0");
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const year = now.getFullYear();
+      const hours = String(now.getHours()).padStart(2, "0");
+      const minutes = String(now.getMinutes()).padStart(2, "0");
+      const timestamp = `${day}/${month}/${year} ${hours}:${minutes}`;
+
+      const userName = localStorage.getItem("userName")
+
+      // Submit each document directly to the Documents sheet
+      for (const file of multipleFiles) {
+        let serialNumber = "";
+        const prefix = getSerialPrefix(file.documentType);
+
+        if (file.documentType === "Personal") {
+          serialNumber = `${prefix}-${String(nextPersonal).padStart(3, "0")}`;
+          nextPersonal++;
+        } else if (file.documentType === "Company") {
+          serialNumber = `${prefix}-${String(nextCompany).padStart(3, "0")}`;
+          nextCompany++;
+        } else if (file.documentType === "Director") {
+          serialNumber = `${prefix}-${String(nextDirector).padStart(3, "0")}`;
+          nextDirector++;
+        }
+
+        console.log(`Generated serial number: ${serialNumber} for document: ${file.name}`);
+
+        let fileLink = "";
+        if (file.file) {
+          fileLink = await uploadFileToGoogleDrive(file.file);
+        }
+
+        // Combine renewal date and time into a single string
+        const renewalDateTime = file.needsRenewal && file.renewalDate && file.renewalTime
+          ? `${formatDateToDDMMYYYY(file.renewalDate)} ${file.renewalTime}`
+          : "";
+
+        const rowData = [
+          timestamp, // Use the formatted timestamp here
+          serialNumber,
+          file.name,
+          file.type,
+          file.documentType,
+          "", // Empty company field (removed)
+          "", // Empty tags
+          file.entityName,
+          file.needsRenewal ? "Yes" : "No",
+          renewalDateTime, // Combined date and time in one column
+          `${((file.file?.size || 0) / 1024 / 1024).toFixed(2)} MB`,
+          fileLink,
+          "", // Empty email
+          "", // Empty phone number
+          "", // Empty email
+          "",
+          "", // Empty renewel filter
+          userName, // Empty phone number
+          file.needsRenewal ? file.renewalType : "", // Renewal Type in Column S
+        ];
+
+        const formData = new FormData();
+        formData.append("sheetName", "Documents");
+        formData.append("action", "insert");
+        formData.append("rowData", JSON.stringify(rowData));
+
+        const response = await fetch(scriptUrl, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (!result || !result.success) {
+          throw new Error(result?.error || "Document submission failed");
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: "Documents have been added successfully.",
+      });
+
+      // Reset the form
+      setMultipleFiles([{
+        id: 1,
+        name: "",
+        type: "",
+        documentType: "Personal",
+        file: null,
+        entityName: "",
+        needsRenewal: false,
+        renewalDate: "",
+        renewalTime: "",
+        renewalType: "",
+      }]);
+
+      router.push("/documents");
+    } catch (error) {
+      console.error("Submission error:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -611,34 +617,56 @@ const handleSubmit = async (e: React.FormEvent) => {
                     </div>
 
                     {fileItem.needsRenewal && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mt-3">
-                        <div className="space-y-2">
-                          <Label htmlFor={`renewal-date-${index}`} className="text-sm font-medium text-gray-700">
-                            Renewal Date *
-                          </Label>
-                          <Input
-                            id={`renewal-date-${index}`}
-                            type="date"
-                            value={fileItem.renewalDate}
-                            onChange={(e) => handleMultipleInputChange(index, "renewalDate", e.target.value)}
-                            className="border-gray-300 text-sm bg-white"
-                            required={fileItem.needsRenewal}
-                          />
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mt-3">
+                          <div className="space-y-2">
+                            <Label htmlFor={`renewal-date-${index}`} className="text-sm font-medium text-gray-700">
+                              Renewal Date *
+                            </Label>
+                            <Input
+                              id={`renewal-date-${index}`}
+                              type="date"
+                              value={fileItem.renewalDate}
+                              onChange={(e) => handleMultipleInputChange(index, "renewalDate", e.target.value)}
+                              className="border-gray-300 text-sm bg-white"
+                              required={fileItem.needsRenewal}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`renewal-time-${index}`} className="text-sm font-medium text-gray-700">
+                              Renewal Time *
+                            </Label>
+                            <Input
+                              id={`renewal-time-${index}`}
+                              type="time"
+                              value={fileItem.renewalTime}
+                              onChange={(e) => handleMultipleInputChange(index, "renewalTime", e.target.value)}
+                              className="border-gray-300 text-sm bg-white"
+                              required={fileItem.needsRenewal}
+                            />
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor={`renewal-time-${index}`} className="text-sm font-medium text-gray-700">
-                            Renewal Time *
+                        <div className="space-y-2 mt-3">
+                          <Label htmlFor={`renewal-type-${index}`} className="text-sm font-medium text-gray-700">
+                            Renewal Type *
                           </Label>
-                          <Input
-                            id={`renewal-time-${index}`}
-                            type="time"
-                            value={fileItem.renewalTime}
-                            onChange={(e) => handleMultipleInputChange(index, "renewalTime", e.target.value)}
-                            className="border-gray-300 text-sm bg-white"
+                          <Select
+                            value={fileItem.renewalType}
+                            onValueChange={(value) => handleMultipleInputChange(index, "renewalType", value)}
                             required={fileItem.needsRenewal}
-                          />
+                          >
+                            <SelectTrigger id={`renewal-type-${index}`} className="border-gray-300 text-sm bg-white">
+                              <SelectValue placeholder="Select renewal type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Monthly">Monthly</SelectItem>
+                              <SelectItem value="Quarterly">Quarterly</SelectItem>
+                              <SelectItem value="half-yearly">Half-yearly</SelectItem>
+                              <SelectItem value="Annualy">Annualy</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </div>
+                      </>
                     )}
                   </div>
 
