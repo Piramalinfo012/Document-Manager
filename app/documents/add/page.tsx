@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth-provider";
-import { useDocuments, type DocumentType } from "@/components/document-context";
+import { type DocumentType } from "@/components/document-context";
 import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { Switch } from "@/components/ui/switch";
@@ -95,7 +95,7 @@ export default function AddDocument() {
       id: number;
       name: string;
       type: string;
-      documentType: DocumentType;
+      documentType: string;
       file: File | null;
       entityName: string;
       needsRenewal: boolean;
@@ -108,7 +108,7 @@ export default function AddDocument() {
       id: 1,
       name: "",
       type: "",
-      documentType: "Personal",
+      documentType: "",
       file: null,
       entityName: "",
       needsRenewal: false,
@@ -195,7 +195,7 @@ export default function AddDocument() {
         id: Date.now(),
         name: "",
         type: "",
-        documentType: "Personal",
+        documentType: "",
         file: null,
         entityName: "",
         needsRenewal: false,
@@ -212,7 +212,7 @@ export default function AddDocument() {
     }
   };
 
-  const getSerialPrefix = (documentType: DocumentType): string => {
+  const getSerialPrefix = (documentType: string): string => {
     switch (documentType) {
       case "Personal":
         return "PN";
@@ -221,7 +221,7 @@ export default function AddDocument() {
       case "Director":
         return "DN";
       default:
-        return "DN";
+        return "SN"; // For all other categories, use SN prefix
     }
   };
 
@@ -313,6 +313,7 @@ export default function AddDocument() {
       let nextPersonal = serialData.nextSerials.personal;
       let nextCompany = serialData.nextSerials.company;
       let nextDirector = serialData.nextSerials.director;
+      let nextStandard = serialData.nextSerials.standard || 1; // Get next standard serial number, default to 1
 
       // Get current date and time in dd/mm/yyyy hh:mm format
       const now = new Date();
@@ -330,6 +331,7 @@ export default function AddDocument() {
         let serialNumber = "";
         const prefix = getSerialPrefix(file.documentType);
 
+        // Generate serial number based on document category
         if (file.documentType === "Personal") {
           serialNumber = `${prefix}-${String(nextPersonal).padStart(3, "0")}`;
           nextPersonal++;
@@ -339,6 +341,10 @@ export default function AddDocument() {
         } else if (file.documentType === "Director") {
           serialNumber = `${prefix}-${String(nextDirector).padStart(3, "0")}`;
           nextDirector++;
+        } else {
+          // For all other categories, use SN prefix with sequential numbers
+          serialNumber = `${prefix}-${String(nextStandard).padStart(3, "0")}`;
+          nextStandard++;
         }
 
         console.log(`Generated serial number: ${serialNumber} for document: ${file.name}`);
@@ -406,7 +412,7 @@ export default function AddDocument() {
         id: 1,
         name: "",
         type: "",
-        documentType: "Personal",
+        documentType: "",
         file: null,
         entityName: "",
         needsRenewal: false,
@@ -440,7 +446,7 @@ export default function AddDocument() {
     return null;
   }
 
-  const getEntityLabel = (documentType: DocumentType): string => {
+  const getEntityLabel = (documentType: string): string => {
     switch (documentType) {
       case "Personal":
         return "Person Name";
@@ -453,7 +459,7 @@ export default function AddDocument() {
     }
   };
 
-  const getEntityPlaceholder = (documentType: DocumentType): string => {
+  const getEntityPlaceholder = (documentType: string): string => {
     switch (documentType) {
       case "Personal":
         return "Enter person name";
@@ -462,7 +468,7 @@ export default function AddDocument() {
       case "Director":
         return "Enter director name";
       default:
-        return "Enter name";
+        return "Enter entity name";
     }
   };
 
@@ -562,7 +568,7 @@ export default function AddDocument() {
                       </Label>
                       <Select
                         value={fileItem.documentType}
-                        onValueChange={(value: DocumentType) => {
+                        onValueChange={(value: string) => {
                           const updatedFiles = [...multipleFiles];
                           updatedFiles[index] = {
                             ...updatedFiles[index],
