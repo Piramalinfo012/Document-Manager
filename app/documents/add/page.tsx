@@ -225,6 +225,44 @@ export default function AddDocument() {
     }
   };
 
+  const getNextStandardSerialNumber = async (): Promise<number> => {
+    try {
+      const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
+      
+      // Fetch all documents to find the highest SN serial number
+      const response = await fetch(`${scriptUrl}?sheet=Documents&action=fetch`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch documents: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (!result.success || !result.data) {
+        return 1; // Start from 1 if no data
+      }
+      
+      let highestNumber = 0;
+      
+      // Skip header row and check each document
+      result.data.slice(1).forEach((row: string[]) => {
+        const serialNumber = row[1]; // Column B contains serial number
+        if (serialNumber && serialNumber.startsWith("SN-")) {
+          const numberStr = serialNumber.substring(3); // Remove "SN-"
+          const number = Number.parseInt(numberStr, 10);
+          if (!isNaN(number) && number > highestNumber) {
+            highestNumber = number;
+          }
+        }
+      });
+      
+      return highestNumber + 1; // Return next number
+    } catch (error) {
+      console.error("Error fetching next standard serial number:", error);
+      return 1; // Default to 1 on error
+    }
+  };
+
   const uploadFileToGoogleDrive = async (file: File): Promise<string> => {
     const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
 
@@ -296,6 +334,7 @@ export default function AddDocument() {
       setIsSubmitting(true);
       const scriptUrl = "https://script.google.com/macros/s/AKfycbyhj4X4koy5xRMWw6QYCwY9UghvzqE8euHryzMJNY1Fnt76DQQasObJ1vRuMrqGqY_9Kg/exec";
 
+      // Fetch next serial numbers for PN, CN, DN
       const serialResponse = await fetch(`${scriptUrl}?action=getNextSerials`);
 
       if (!serialResponse.ok) {
@@ -313,7 +352,9 @@ export default function AddDocument() {
       let nextPersonal = serialData.nextSerials.personal;
       let nextCompany = serialData.nextSerials.company;
       let nextDirector = serialData.nextSerials.director;
-      let nextStandard = serialData.nextSerials.standard || 1; // Get next standard serial number, default to 1
+      
+      // Get the next standard serial number by checking existing SN- numbers
+      let nextStandard = await getNextStandardSerialNumber();
 
       // Get current date and time in dd/mm/yyyy hh:mm format
       const now = new Date();
@@ -342,9 +383,9 @@ export default function AddDocument() {
           serialNumber = `${prefix}-${String(nextDirector).padStart(3, "0")}`;
           nextDirector++;
         } else {
-          // For all other categories, use SN prefix with sequential numbers
+          // For all other categories, use SN prefix with the next available number
           serialNumber = `${prefix}-${String(nextStandard).padStart(3, "0")}`;
-          nextStandard++;
+          nextStandard++; // Increment for next document
         }
 
         console.log(`Generated serial number: ${serialNumber} for document: ${file.name}`);
